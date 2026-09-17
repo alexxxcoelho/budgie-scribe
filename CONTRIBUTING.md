@@ -59,8 +59,8 @@ A pair is one JSON line, in the exact shape the training script reads:
   verifier. In the app, turn on *Settings → Text enhancements → Collect
   training pairs* and every correction you make by hand on a result becomes a
   candidate too. The CLI is free to use. Homebrew keeps it current with
-  `brew upgrade echo-cli`. Any other engine is welcome too; name it in
-  `source`.
+  `brew update && brew upgrade echo-cli`. Any other engine is welcome too;
+  name it in `source`.
 - `clean` is what you meant, under the rules of [FORMAT.md](FORMAT.md) §8:
   fillers gone, corrections resolved, numbers written, nothing added, nothing
   summarized. When in doubt, keep the speaker's words.

@@ -274,7 +274,7 @@ echo-cli login
 echo-cli scribe --language fr < transcript.txt
 ```
 
-Update it later with `brew upgrade echo-cli`.
+Update it later with `brew update && brew upgrade echo-cli`.
 
 ## Best practices
 
