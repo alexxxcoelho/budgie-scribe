@@ -62,6 +62,27 @@ requirement. The Python modules are what matter and run unchanged elsewhere.
 > else once. The French training data of one shipped build was lost when a
 > temporary folder was purged.
 
+That "somewhere else" is the private dataset
+[flowcorp-ch/BudgieScribe-data](https://huggingface.co/datasets/flowcorp-ch/BudgieScribe-data)
+(card: `hf/BudgieScribe-data/README.md`). It holds, for each shipped build,
+the exact mix it was trained on (`mix/pairs_mix.jsonl` fr,
+`mix/pairs_mix_en.jsonl` en), the components of that mix, the corpus units
+and ASR transcripts, the teacher's raw outputs and adjudications, the mixes
+of the previous builds, every `run.json`, the logs, the overnight chains, and
+a snapshot of the code that produced the build. The bf16 weights of each
+shipped build are in a private model repo of the same name
+(`flowcorp-ch/scribe-v9`, `flowcorp-ch/scribe-en-v7`). Private because the
+French side derives from SUMM-RE (NOTICE §2). Access is by request; with it,
+§2–§6 can be skipped entirely and §7 starts from the Hub:
+
+```bash
+hf download flowcorp-ch/BudgieScribe-data --repo-type dataset --local-dir <work>
+python scribe/entrainement/train.py --pairs <work>/mix/pairs_mix_en.jsonl --out scribe-en-repro --epochs 2 --batch 4
+```
+
+After a build ships, `scribe/pipeline/archiver.py` writes the archive from
+the work directory and `hf upload` sends it (commands on the card).
+
 ## 2. Corpus: from recordings to dictation-sized units
 
 The model is trained on **units**: stretches of one speaker, 20 to 150 words,
@@ -186,10 +207,12 @@ python scribe/pipeline/melanger.py pairs_mix_en.jsonl pairs_itn_en.jsonl pairs_f
 python scribe/pipeline/pii_scan.py pairs_mix_en.jsonl
 ```
 
-Shipped English mix: 34,382 pairs (31,590 trained on, 2,792 held out), of
-which 1,382 real. Shipped French mix: 32,038 units, ~14 % real pairs. Below
-~5 % real, the gradient is dominated by memorized templates (loss → 0.000 in a
-few hundred steps); at ~14 % it carries information (loss 0.948 → 0.046).
+Shipped English mix (`scribe-en-v7`): 38,409 pairs (35,306 trained on, 3,103
+held out), of which 1,409 real. Shipped French mix (`scribe-v9`): 41,387
+pairs (38,042 / 3,345), of which 4,387 real (10.6 %). Both files, with their
+components, are in the private dataset (§1). Below ~5 % real, the gradient
+is dominated by memorized templates (loss → 0.000 in a few hundred steps);
+at ~14 % (the `v8` mix) it carries information (loss 0.948 → 0.046).
 Read fifty pairs of every new family before training; reading is what found
 "we is preparing" and "ie".
 

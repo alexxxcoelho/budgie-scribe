@@ -86,3 +86,8 @@ scripts above on the stated build. The synthetic sets and the scripts are
 public; the A/B set and the real takes are not (personal or license-bound
 data), so 2 and 3 are reproducible in method, not in bytes. Open an issue if a
 published number does not match what you get on the public sets.
+
+With access to the private dataset (TRAINING.md §1), the A/B set of each
+language (`<lang>/corpus/eval_set_*.jsonl`, 80 units), the bench outputs of
+every build (`<lang>/bench/`) and the shipped weights are there, so 1 and 2
+become reproducible in bytes as well.

@@ -293,8 +293,9 @@ def main():
                "device": "%s:%s" % (dev.type, getattr(p, "gcnArchName", "?") if dev.type == "cuda" else "-"),
                "profil": prof["nom"], "base": base, "methode": methode,
                "lora": {"r": lora_r, "alpha": lora_alpha} if methode == "lora" else None,
-               "template": template, "lr": lr,
+               "template": template, "lr": lr, "epochs": epochs, "max_len": max_len,
                "batch": batch, "accum": accum,
+               "pairs": os.path.basename(pairs_path),
                "dtype": "bf16-autocast" if methode == "full" else "bf16-base+lora-fp32",
                "log": logged},
               open(os.path.join(out_dir, "run.json"), "w"), indent=2)
