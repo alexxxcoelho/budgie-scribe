@@ -14,6 +14,8 @@
 #            LICENSE-MODEL, NOTICE and the family's manifest entry.
 #   eval     the held-out synthetic sets, regenerated from the generators
 #            (deterministic) and scanned for personal data before upload.
+#   contrib  the reviewed CC0 contribution tree, mirrored into its dedicated
+#            public dataset; private training mixes are never copied there.
 #
 # Triggers: a push to main that touches the manifest, a card, the licenses or
 # the generators; or by hand (workflow_dispatch), optionally for one family.
@@ -117,8 +119,9 @@ jobs:
           hf upload flowcorp-ch/BudgieScribe-eval out/eval . --type dataset \
             --commit-message "Held-out sets from ${GITHUB_SHA::7}"
 
-  # Contributed pairs, once merged, are mirrored into the training dataset
-  # under contrib/ — the CI of pull requests has already verified them.
+  # Contributed pairs, once merged, are mirrored into their own PUBLIC dataset.
+  # The full internal training repository stays private because it also holds
+  # licensed corpora and non-public build material.
   contrib:
     runs-on: ubuntu-latest
     permissions:
@@ -132,10 +135,18 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Verify everything under contrib/ once more
         run: python3 scribe/pipeline/verifier_contribution.py --tout
-      - name: Mirror to datasets/flowcorp-ch/BudgieScribe-data (contrib/)
-        env:
-          HF_OIDC_RESOURCE: datasets/flowcorp-ch/BudgieScribe-data
+      - name: Assemble the public contribution dataset
         run: |
-          hf upload flowcorp-ch/BudgieScribe-data contrib contrib --type dataset \
-            --exclude "README.md" --delete "contrib/*" \
+          mkdir -p out/contrib-dataset/contrib/fr out/contrib-dataset/contrib/en
+          cp hf/BudgieScribe-contrib/README.md out/contrib-dataset/README.md
+          find contrib/fr -maxdepth 1 -type f -name '*.jsonl' ! -name 'exemple-*.jsonl' \
+            -exec cp {} out/contrib-dataset/contrib/fr/ \;
+          find contrib/en -maxdepth 1 -type f -name '*.jsonl' ! -name 'example-*.jsonl' \
+            -exec cp {} out/contrib-dataset/contrib/en/ \;
+      - name: Mirror to datasets/flowcorp-ch/BudgieScribe-contrib
+        env:
+          HF_OIDC_RESOURCE: datasets/flowcorp-ch/BudgieScribe-contrib
+        run: |
+          hf upload flowcorp-ch/BudgieScribe-contrib out/contrib-dataset . --type dataset \
+            --delete "contrib/*" \
             --commit-message "contrib/ from ${GITHUB_SHA::7}"

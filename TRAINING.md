@@ -4,12 +4,12 @@ The reproducible recipe behind the published models, and the procedure for a
 new language. Every command below produced a shipped build; nothing is
 described that was not run.
 
-The repository contains **code, prompts and documentation only**. It contains
-no data: no pairs, no units, no audio, no weights. That is a license
-obligation for the French corpus (see `NOTICE` §2) and the project rule for
-every language. The pipeline reads and writes everything in a work directory
-outside the repository, given by `SCRIBE_TRAVAIL` (default: the current
-directory).
+The repository contains code, prompts, documentation and only the **CC0 pairs
+accepted through `contrib/` pull requests**. Licensed corpora, derived private
+mixes, audio and weights never enter it. That is a license obligation for the
+French corpus (see `NOTICE` §2). The pipeline reads and writes those private
+artifacts in a work directory outside the repository, given by
+`SCRIBE_TRAVAIL` (default: the current directory).
 
 ## 0. What a BudgieScribe model is
 
@@ -222,6 +222,24 @@ Read fifty pairs of every new family before training; reading is what found
 python scribe/entrainement/train.py --pairs pairs_mix_en.jsonl --out scribe-en-next --epochs 2 --batch 4
 python scribe/entrainement/train.py --profil standard --pairs pairs_mix.jsonl --out scribe-standard-fr-next
 ```
+
+For a reproducible Hugging Face Job over the public reviewed contributions,
+pin the dataset commit and select the language files explicitly:
+
+```bash
+hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h \
+  --secrets HF_TOKEN -- \
+  --lang fr --profil nano \
+  --source 'flowcorp-ch/BudgieScribe-contrib@<dataset-commit>:contrib/fr/*.jsonl' \
+  --out <namespace>/scribe-fr-next
+```
+
+`--source` is repeatable, so a run may use only the public contributions, only
+an authorized private mix, or an explicit combination. The job rejects mixed
+languages and duplicate ids/transcripts, then stores `selection.json` in the
+private checkpoint. It records the resolved Hub commits, exact files, row
+count and hashes. `--profil` chooses the standard size; `--base` can replace
+the profile's base model and `--methode full|lora` can replace its method.
 
 (`train.py` is `train_rocm.py` with generic device selection: `cuda`, then
 `mps`, then CPU; on ROCm, torch reports the device as `cuda`.)

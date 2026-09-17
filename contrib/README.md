@@ -8,8 +8,10 @@ format and what happens to your pairs afterwards are in
 Every pull request that touches this folder runs
 `scribe/pipeline/verifier_contribution.py` (format, coherence, duplicates,
 personal data, structural invariants) and posts the report in the checks;
-a maintainer then reads the pairs. Once merged, the folder is mirrored to
-`contrib/` of the training dataset and enters the next training round.
+a maintainer then reads the pairs. Once merged, the folder is mirrored to the
+public `flowcorp-ch/BudgieScribe-contrib` dataset. Training runs select an
+explicit dataset revision and file glob, so accepted data is available without
+silently changing an already recorded run.
 
 `fr/exemple-2026-09.jsonl` and `en/example-2026-09.jsonl` are templates: copy
 one, keep its shape, replace its content. They are excluded from training.

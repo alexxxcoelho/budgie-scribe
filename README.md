@@ -102,7 +102,10 @@ ways to contribute, all documented in [CONTRIBUTING.md](CONTRIBUTING.md):
 1. **Data.** Real dictation pairs, raw ASR output on one side and the text
    the speaker meant on the other. Any language, any accent, any domain, as
    long as you hold the rights and it contains no personal data. The Echo CLI
-   produces the raw side exactly as the app sees it.
+   produces the raw side exactly as the app sees it. Accepted pull requests
+   are published in the versioned
+   [BudgieScribe-contrib](https://huggingface.co/datasets/flowcorp-ch/BudgieScribe-contrib)
+   dataset, which can be selected directly by training jobs.
 2. **Training.** A run costs about a dollar on Hugging Face Jobs or an hour on
    any 16 GB GPU. The recipe is in [TRAINING.md](TRAINING.md); a new language
    is a documented, one-day procedure.
@@ -128,9 +131,10 @@ examples/        replay_examples.sh
 hf/              model cards and Hugging Face Jobs recipes
 ```
 
-The repository contains code, prompts and documentation only. Training data
-never enters it: the derived French corpus may not be redistributed (see
-[NOTICE](NOTICE)), and the same rule is applied to every language.
+The repository contains code, prompts, documentation and the CC0 contribution
+files accepted under `contrib/`. Licensed corpora, derived private mixes,
+audio and model checkpoints never enter it: the derived French corpus may not
+be redistributed (see [NOTICE](NOTICE)).
 
 ## License
 

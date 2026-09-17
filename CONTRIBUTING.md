@@ -80,6 +80,24 @@ A pair is one JSON line, in the exact shape the training script reads:
 Copy `contrib/fr/exemple-2026-09.jsonl` or `contrib/en/example-2026-09.jsonl`
 to start; they are templates and never enter a training mix.
 
+The complete contribution flow is a normal GitHub fork and pull request:
+
+```bash
+gh repo fork alexxxcoelho/budgie-scribe --clone
+cd budgie-scribe
+git switch -c "contrib/<handle>-$(date +%Y-%m)"
+echo-cli scribe export --contrib contrib --handle <handle>
+python scribe/pipeline/verifier_contribution.py contrib/<lang>/<handle>-$(date +%Y-%m).jsonl
+git add contrib/<lang>/<handle>-$(date +%Y-%m).jsonl
+git commit -m "data: contribute <handle> dictation pairs"
+git push -u origin HEAD
+gh pr create --fill
+```
+
+The pull request — not the contributor's fork and not a direct Hub upload —
+is the review boundary. Until it is merged, its rows are not in the public
+dataset and cannot enter an official training selection.
+
 Before opening the pull request, run the same gate the CI runs:
 
 ```bash
@@ -100,9 +118,10 @@ What happens then:
 2. **A maintainer reads the pairs** — up to fifty of them — for what no
    script sees: a meaning that drifted, a number rewritten, a filler that was
    in fact a word. Comments go on the pull request lines.
-3. **Merge.** The file is mirrored to `contrib/` of the training dataset
-   ([flowcorp-ch/BudgieScribe-data](https://huggingface.co/datasets/flowcorp-ch/BudgieScribe-data))
-   by `publish.yml`, and enters the next training round.
+3. **Merge.** The accepted tree is mirrored to the dedicated public dataset
+   ([flowcorp-ch/BudgieScribe-contrib](https://huggingface.co/datasets/flowcorp-ch/BudgieScribe-contrib))
+   by `publish.yml`. The full internal `BudgieScribe-data` repository stays
+   private because it also contains corpora that cannot be redistributed.
 4. **Results come back.** The next build's `MODELS.md` entry and the pull
    request get the held-out tables and the blind A/B against the previous
    build; `file` in the mix says exactly which contribution was in it.
@@ -118,8 +137,17 @@ the model.
 Face Jobs for about a dollar a run:
 
 ```bash
-hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h --secrets HF_TOKEN -- --lang en --pairs flowcorp-ch/BudgieScribe-data:mix/pairs_mix_en.jsonl --out <you>/scribe-en-next
+hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h --secrets HF_TOKEN -- \
+  --lang en --profil nano \
+  --source 'flowcorp-ch/BudgieScribe-contrib@<commit>:contrib/en/*.jsonl' \
+  --out <you>/scribe-en-next
 ```
+
+Repeat `--source` to combine datasets or subsets. Pin every source to a Hub
+commit for a reproducible run; `--profil nano|mini|standard|large` chooses the
+size and default method, while `--base` and `--methode` can override them.
+Every checkpoint contains `selection.json` with the resolved commits, selected
+files, row count and hashes.
 
 What is worth training, in order of measured impact:
 
