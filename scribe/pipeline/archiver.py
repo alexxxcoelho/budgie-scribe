@@ -32,8 +32,9 @@ Lit le repertoire de travail, range chaque fichier dans la disposition de
     <lang>/pii_<mix>.txt           le rapport complet de pii_scan sur le mix
 
 Il NE copie PAS : l'audio et les parquet (se regenerent depuis le Hub avec
-`scribe/corpus/*.py`), les poids (`scribe-*/`, un depot de modele prive par
-build, voir README), les archives .zip et les .md (la doc vit dans le depot).
+`scribe/corpus/*.py`), les poids (`scribe-*/` : le GGUF livre est sur le Hub
+via models/manifest.json, le bf16 reste sur la machine), les archives .zip
+et les .md (la doc vit dans le depot).
 Ce qu'il ecarte est liste en fin d'execution : une omission doit se voir.
 
 `--code <dossier budgie-scribe>` ajoute sous code/scribe@<sha>/ le code qui a
@@ -231,7 +232,6 @@ def main():
         "mix": rel_mix,
         "mix_source": a.mix,
         "train": runs.get(a.build),
-        "poids": "flowcorp-ch/%s (prive)" % a.build,
         "code": archiver_code(a.code, sortie, fichiers) if a.code else None,
         "builds": runs,
         "pii_scan": pii,

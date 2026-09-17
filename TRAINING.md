@@ -69,10 +69,10 @@ the exact mix it was trained on (`mix/pairs_mix.jsonl` fr,
 `mix/pairs_mix_en.jsonl` en), the components of that mix, the corpus units
 and ASR transcripts, the teacher's raw outputs and adjudications, the mixes
 of the previous builds, every `run.json`, the logs, the overnight chains, and
-a snapshot of the code that produced the build. The bf16 weights of each
-shipped build are in a private model repo of the same name
-(`flowcorp-ch/scribe-v9`, `flowcorp-ch/scribe-en-v7`). Private because the
-French side derives from SUMM-RE (NOTICE §2). Access is by request; with it,
+a snapshot of the code that produced the build. Not the weights: the
+shipped GGUF is on the Hub (MODELS.md) and is the A/B baseline; the bf16
+checkpoints stay on the training machine. Private because the French side
+derives from SUMM-RE (NOTICE §2). Access is by request; with it,
 §2–§6 can be skipped entirely and §7 starts from the Hub:
 
 ```bash

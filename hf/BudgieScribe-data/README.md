@@ -32,10 +32,10 @@ dictations (NOTICE §1).
 
 ## What trains what
 
-| Language | Shipped build | Training file | Rows | Trained on | Held out | Weights (bf16, private) |
+| Language | Shipped build | Training file | Rows | Trained on | Held out | Published weights |
 |---|---|---|---:|---:|---:|---|
-| fr | `scribe-v9` | `mix/pairs_mix.jsonl` | 41,387 | 38,042 | 3,345 | `flowcorp-ch/scribe-v9` |
-| en | `scribe-en-v7` | `mix/pairs_mix_en.jsonl` | 38,409 | 35,306 | 3,103 | `flowcorp-ch/scribe-en-v7` |
+| fr | `scribe-v9` | `mix/pairs_mix.jsonl` | 41,387 | 38,042 | 3,345 | `BudgieScribe-Nano-fr-Q4_K_M.gguf` |
+| en | `scribe-en-v7` | `mix/pairs_mix_en.jsonl` | 38,409 | 35,306 | 3,103 | `BudgieScribe-Nano-en-Q4_K_M.gguf` |
 
 Both: Qwen3-0.6B, full SFT, lr 1e-5, batch 4 × accum 2, 2 epochs, max
 512 tokens, bf16 autocast, ~1 h on one Radeon AI PRO R9700. `train.py`
@@ -79,8 +79,10 @@ manifest.json                  SHA-256, bytes, rows of every file; build → mix
 
 Not here, on purpose: the audio and parquet of the source corpora (15 GB,
 regenerated from the Hub by `scribe/corpus/voxpopuli.py` and `summre.py`),
-the weights (one private model repo per build, table above), and the
-documentation (the code repository). `scribe/pipeline/archiver.py` produces
+the weights (the shipped GGUF of each build is in
+[flowcorp-ch/BudgieScribe-Nano](https://huggingface.co/flowcorp-ch/BudgieScribe-Nano);
+the bf16 checkpoints stay on the training machine), and the documentation
+(the code repository). `scribe/pipeline/archiver.py` produces
 this layout from a work directory and lists what it leaves out.
 
 ## Row format
@@ -121,7 +123,7 @@ python scribe/entrainement/train.py --profil mini --pairs <work>/mix/pairs_mix.j
 ```
 
 Then GGUF (TRAINING.md §8) and the four evaluations (EVALUATION.md) against
-the shipped build's weights, which are the A/B baseline.
+the shipped GGUF of the same language, which is the A/B baseline.
 
 ## Personal data
 
@@ -142,8 +144,10 @@ From the training machine, after a build is shipped:
 python scribe/pipeline/archiver.py --lang fr --build scribe-v10 --mix pairs_mix10.jsonl <out>
 python scribe/pipeline/archiver.py --lang en --build scribe-en-v8 --mix pairs_mix_en8.jsonl <out>
 hf upload flowcorp-ch/BudgieScribe-data <out> . --type dataset --commit-message "scribe-v10, scribe-en-v8"
-hf upload flowcorp-ch/scribe-v10 <work>/poc-fr/scribe-v10 . --private
 ```
+
+The weights go through `models/manifest.json` and `publish.yml`, as any
+build (MODELS.md); nothing else of a checkpoint leaves the machine.
 
 `contrib/` is mirrored here from the code repository's `contrib/` by
 `publish.yml` on every merge; it is the only path that writes to this
