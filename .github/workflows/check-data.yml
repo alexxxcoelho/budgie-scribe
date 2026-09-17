@@ -1,0 +1,44 @@
+# Runs on every pull request (and push) that touches contrib/: the mechanical
+# gate on contributed dictation pairs. It refuses what is mechanically wrong
+# (format, coherence, duplicates, personal data, structural invariants) and
+# writes its report in the job summary, so that the maintainer's reading
+# bears on meaning only. Stdlib Python, no dependency.
+name: Check contributed data
+
+on:
+  pull_request:
+    paths: ["contrib/**"]
+  push:
+    branches: [main]
+    paths: ["contrib/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Changed files under contrib/
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          files=$(git diff --name-only --diff-filter=AM "$base" HEAD -- 'contrib/*/*.jsonl' | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "changed: $files"
+      - name: Verify
+        if: steps.changed.outputs.files != ''
+        run: python scribe/pipeline/verifier_contribution.py ${{ steps.changed.outputs.files }}
+      - name: Nothing to verify
+        if: steps.changed.outputs.files == ''
+        run: echo "no contributed jsonl changed" >> "$GITHUB_STEP_SUMMARY"

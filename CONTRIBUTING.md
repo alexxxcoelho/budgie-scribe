@@ -18,13 +18,22 @@ Ground rules for every contribution:
 ## 1. Data: dictation pairs
 
 The models are short of one thing: real dictation with the text the speaker
-meant. A pair is one JSON line:
+meant. Contributions arrive as **pull requests** on this repository, in
+`contrib/<lang>/<handle>-<YYYY-MM>.jsonl` — one file per contributor and
+month, one language per folder. Git keeps the history, the CI keeps the
+gate, a maintainer keeps the reading.
+
+A pair is one JSON line, in the exact shape the training script reads:
 
 ```json
-{"lang": "fr", "sale": "alors euh on se voit jeudi non vendredi à dix heures", "propre": "On se voit vendredi à 10 heures.", "control": {"styling": "semi-formal", "structure": "prose", "context": "general"}, "source": "own-dictation"}
+{"id": "alex-2026-09-001", "file": "alex-2026-09", "lang": "fr",
+ "control": "[Styling: semi-formal] [Structure: prose] [Context: general] [Lang: fr]",
+ "dirty": "alors euh on se voit jeudi non vendredi à dix heures",
+ "clean": "On se voit vendredi à 10 heures.",
+ "source": "budgie-echo-cohere"}
 ```
 
-- `sale` is the **raw output of an ASR engine**, not a transcript you typed:
+- `dirty` is the **raw output of an ASR engine**, not a transcript you typed:
   the model learns to fix what engines actually produce. The easiest way to
   get it exactly as Budgie Echo sees it:
 
@@ -33,28 +42,54 @@ meant. A pair is one JSON line:
   ```
 
   This writes the raw side for each take with Scribe off; you fill in
-  `propre`. The CLI is free to use (60 minutes of local transcription per
-  month) and downloads from [gobudgie.com/echo/cli](https://gobudgie.com/echo/cli).
-  Any other engine is welcome too; say which one in `source`.
-- `propre` is what you meant, under the rules of [FORMAT.md](FORMAT.md) §8:
+  `clean`. The CLI is free to use and downloads from
+  [gobudgie.com/echo/cli](https://gobudgie.com/echo/cli). Any other engine
+  is welcome too; name it in `source`.
+- `clean` is what you meant, under the rules of [FORMAT.md](FORMAT.md) §8:
   fillers gone, corrections resolved, numbers written, nothing added, nothing
   summarized. When in doubt, keep the speaker's words.
+- `control` is the line the model will be given (`spec.control_line`); use
+  `semi-formal` / `prose` / `general` unless the take really is a list or an
+  e-mail. `file` is the file name without extension — it is the key that
+  traces the pair through every training mix. `id` is unique across the
+  whole `contrib/` folder. No `held_out`: the train/eval split is made at
+  mixing time, by file, never inside a contribution.
 - Between 20 and 150 words per pair. A long recording becomes several pairs
   cut on sentence boundaries.
+- **No personal data**: no third-party names, real e-mail addresses, phone
+  numbers, postal addresses, account numbers. Your own voice, or the
+  speaker's consent. Pairs are released under **CC0 1.0** (the pull request
+  template asks you to confirm).
 
-Before opening the pull request:
+Copy `contrib/fr/exemple-2026-09.jsonl` or `contrib/en/example-2026-09.jsonl`
+to start; they are templates and never enter a training mix.
+
+Before opening the pull request, run the same gate the CI runs:
 
 ```bash
-python scribe/pipeline/pii_scan.py pairs.jsonl          # must print "0 ligne(s) signalee(s)"
-python scribe/pipeline/valider_paires.py pairs.jsonl    # structural invariants: no invention, no loss, accents (fr)
+python scribe/pipeline/verifier_contribution.py contrib/fr/<handle>-2026-09.jsonl
 ```
 
-Then a pull request on the data repository
-[huggingface.co/datasets/flowcorp-ch/BudgieScribe-data](https://huggingface.co/datasets/flowcorp-ch/BudgieScribe-data)
-(one folder per language, one file per contribution, a `README` line with the
-license you assert). CI reruns both checks; a maintainer reads fifty pairs;
-merged pairs enter the next training round and the results are posted back
-on the pull request.
+It refuses what is mechanically wrong — file name, missing keys, a control
+line outside the grammar, a language that disagrees with the folder, a
+duplicate of a pair already in `contrib/`, personal data (`pii_scan.py`),
+structural faults (`valider_paires.py`: capitalization, final punctuation,
+identical sides, missing accents) — and prints why, line by line.
+
+What happens then:
+
+1. **CI** (`check-data.yml`) reruns the gate on the changed files and posts
+   the report in the checks. A red check means the pull request is not read
+   yet: fix and push again.
+2. **A maintainer reads the pairs** — up to fifty of them — for what no
+   script sees: a meaning that drifted, a number rewritten, a filler that was
+   in fact a word. Comments go on the pull request lines.
+3. **Merge.** The file is mirrored to `contrib/` of the training dataset
+   ([flowcorp-ch/BudgieScribe-data](https://huggingface.co/datasets/flowcorp-ch/BudgieScribe-data))
+   by `publish.yml`, and enters the next training round.
+4. **Results come back.** The next build's `MODELS.md` entry and the pull
+   request get the held-out tables and the blind A/B against the previous
+   build; `file` in the mix says exactly which contribution was in it.
 
 Fifty good pairs are worth more than five hundred careless ones: the learning
 curve on real pairs plateaus early, coverage of rare phenomena is what moves

@@ -29,6 +29,7 @@ on:
       - "NOTICE"
       - "scribe/generateurs/**"
       - "scribe/bancs/exporter_heldout.py"
+      - "contrib/**"
       - ".github/workflows/publish.yml"
   workflow_dispatch:
     inputs:
@@ -115,3 +116,26 @@ jobs:
         run: |
           hf upload flowcorp-ch/BudgieScribe-eval out/eval . --type dataset \
             --commit-message "Held-out sets from ${GITHUB_SHA::7}"
+
+  # Contributed pairs, once merged, are mirrored into the training dataset
+  # under contrib/ — the CI of pull requests has already verified them.
+  contrib:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the hf CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash -s -- --exclude-skill
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Verify everything under contrib/ once more
+        run: python3 scribe/pipeline/verifier_contribution.py --tout
+      - name: Mirror to datasets/flowcorp-ch/BudgieScribe-data (contrib/)
+        env:
+          HF_OIDC_RESOURCE: datasets/flowcorp-ch/BudgieScribe-data
+        run: |
+          hf upload flowcorp-ch/BudgieScribe-data contrib contrib --type dataset \
+            --exclude "README.md" --delete "contrib/*" \
+            --commit-message "contrib/ from ${GITHUB_SHA::7}"

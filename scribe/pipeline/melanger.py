@@ -14,7 +14,7 @@ l'entrainement (train_rocm.py) qui ecarte les paires tenues a l'ecart. Melanger
 et filtrer dans le meme geste ferait disparaitre le jeu d'evaluation du
 fichier, donc de la trace.
 
-Usage : melanger.py <sortie.jsonl> <entree1.jsonl> [entree2.jsonl ...]
+Usage : melanger.py [--multilingue] <sortie.jsonl> <entree1.jsonl> [entree2.jsonl ...]
 """
 import collections, json, os, random, sys
 
@@ -29,22 +29,29 @@ def main():
     if len(sys.argv) < 3:
         print(__doc__)
         return 2
-    out = sys.argv[1] if os.path.isabs(sys.argv[1]) else os.path.join(SP, sys.argv[1])
+    args = [a for a in sys.argv[1:] if a != "--multilingue"]
+    multilingue = "--multilingue" in sys.argv
+    out = args[0] if os.path.isabs(args[0]) else os.path.join(SP, args[0])
     rows, par_source, par_fichier, langues = [], collections.Counter(), {}, collections.Counter()
-    for src in sys.argv[2:]:
+    for src in args[1:]:
         p = src if os.path.isabs(src) else os.path.join(SP, src)
         n = 0
         for l in open(p, encoding="utf-8"):
             r = json.loads(l)
+            # Les gabarits de contrib/ (source "example") montrent la forme
+            # d'une contribution ; ils n'apprennent rien au modele.
+            if r.get("source") == "example":
+                continue
             rows.append(r)
             par_source[r.get("source", "?")] += 1
             langues[r.get("lang", "?")] += 1
             n += 1
         par_fichier[os.path.basename(p)] = n
-    if len(langues) > 1:
-        # Un modele par langue : un melange bilingue est presque surement une
-        # erreur de ligne de commande, pas une intention.
-        print("!!! plusieurs langues dans le melange : %s" % dict(langues))
+    if len(langues) > 1 and not multilingue:
+        # Un modele par langue a nano : un melange bilingue est presque
+        # surement une erreur de ligne de commande. Les profils LoRA (mini et
+        # au-dela) peuvent le vouloir : --multilingue le dit explicitement.
+        print("!!! plusieurs langues dans le melange : %s (passez --multilingue si c'est voulu)" % dict(langues))
         return 1
     random.Random(SEED).shuffle(rows)
     with open(out, "w", encoding="utf-8") as f:

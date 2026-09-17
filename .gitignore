@@ -7,6 +7,9 @@
 # ---------------------------------------------------------------- données
 # Paires, unités, manifestes, verdicts, générations, jeux d'évaluation.
 *.jsonl
+# Sauf les contributions par pull request : donnees publiques, licence
+# affirmee par le contributeur, verifiees par la CI (contrib/README.md).
+!contrib/**/*.jsonl
 *.jsonl.progress
 *.jsonl.adjudged
 *.parquet
