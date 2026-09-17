@@ -3,11 +3,15 @@
 
     python hf/jobs/assemble.py <out-dir> [Family ...]
 
-For every family with at least one file: download each GGUF from its
-`source`, refuse it unless the SHA-256 matches the manifest, then lay out
-<out-dir>/<repo>/ with the card, LICENSE-MODEL, NOTICE, manifest.json (the
-family's entry) and the GGUFs under their published names. Families with no
-file are skipped: their Hub repo stays as it is.
+For every family with at least one file: download each GGUF — from the
+family's Hub repo by default (the training machine uploaded it there), or
+from `source` when the entry names one — refuse it unless the SHA-256
+matches the manifest, then lay out <out-dir>/<repo>/ with the card,
+LICENSE-MODEL, NOTICE, manifest.json (the family's entry) and the GGUFs under
+their published names. `hf upload` deduplicates by hash, so a GGUF already on
+the Hub is not transferred again: the upload only carries the card and the
+manifest, and the download is the audit. Families with no file are skipped:
+their Hub repo stays as it is.
 
 Prints one line per assembled family, `<Family> <repo>`, which the workflow
 reads to set HF_OIDC_RESOURCE per upload step. Stdlib only.
@@ -56,8 +60,10 @@ def main():
                   indent=2, ensure_ascii=False)
         for lang, spec in fam["files"].items():
             path = os.path.join(dst, spec["file"])
-            print("%s/%s <- %s" % (name, lang, spec["source"]), file=sys.stderr)
-            fetch(spec["source"], path)
+            source = spec.get("source") or "https://huggingface.co/%s/%s/resolve/main/%s" % (
+                man["namespace"], fam["repo"], spec["file"])
+            print("%s/%s <- %s" % (name, lang, source), file=sys.stderr)
+            fetch(source, path)
             got = sha256(path)
             if got != spec["sha256"]:
                 raise SystemExit("SHA-256 mismatch for %s: manifest %s, downloaded %s"

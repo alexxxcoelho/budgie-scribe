@@ -204,6 +204,18 @@ function Invoke-Gguf {
   # script ne peut pas le deviner depuis le GGUF. Il le demande.
   Warn "Avant publication : ce modele a-t-il vu des donnees personnelles ?"
   Warn "Si oui, prefixez le fichier LOCAL-UNIQUEMENT_donnees-perso_ (NOTICE, section 0)."
+
+  # Publication : les octets vont DIRECTEMENT dans le depot HF de la famille
+  # (plus de B2), sous le nom publie ; la CI du depot public verifie ensuite le
+  # SHA contre models/manifest.json et pousse la carte. Le nom de famille et
+  # la langue viennent du run.json du modele.
+  $run = Join-Path $src 'run.json'
+  $profil = if (Test-Path $run) { (Get-Content $run -Raw | ConvertFrom-Json).profil } else { 'nano' }
+  $depot = @{ nano = 'BudgieScribe-Nano'; mini = 'BudgieScribe-Mini'; standard = 'BudgieScribe'; large = 'BudgieScribe-Large' }[$profil]
+  $lang = if ($env:SCRIBE_LANG) { $env:SCRIBE_LANG } else { 'fr' }
+  Info "Pour publier (hf auth login une fois, token write sur flowcorp-ch) :"
+  Info ("  hf upload flowcorp-ch/{0} `"{1}`" {0}-{2}-{3}.gguf" -f $depot, $q, $lang, $Quant)
+  Info ("  puis models/manifest.json : sha256 {0}, {1:N0} octets, build {2}" -f $sha, (Get-Item $q).Length, $Modele)
 }
 
 function Invoke-GenererItn {

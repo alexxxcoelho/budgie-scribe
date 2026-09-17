@@ -35,10 +35,12 @@ One Hub repository per family, both languages inside:
 | BudgieScribe | Qwen3-4B, LoRA | flowcorp-ch/BudgieScribe | training profile ready, no build yet |
 | Large | Qwen3-8B, LoRA | flowcorp-ch/BudgieScribe-Large | training profile ready, no build yet |
 
-Current results, limits and build ids: [MODELS.md](MODELS.md). The bytes on
-the Hub are published by [`publish.yml`](.github/workflows/publish.yml) from
-[`models/manifest.json`](models/manifest.json), SHA-256 checked, through a
-Hugging Face Trusted Publisher (no token stored anywhere).
+Current results, limits and build ids: [MODELS.md](MODELS.md).
+[`models/manifest.json`](models/manifest.json) is the contract: file name,
+build and SHA-256 of every published GGUF. [`publish.yml`](.github/workflows/publish.yml)
+re-downloads each file from the Hub, refuses to publish a card whose bytes
+do not match the manifest, and pushes through a Hugging Face Trusted
+Publisher — no token stored anywhere.
 
 ## Try it in three commands
 
