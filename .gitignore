@@ -1,0 +1,81 @@
+# budgie-scribe — ce qui ne rentre JAMAIS dans le dépôt.
+#
+# Le premier bloc n'est pas une commodité, c'est une obligation de licence :
+# le corpus dérivé de SUMM-RE (CC BY-SA 4.0) ne se distribue pas. Voir NOTICE.
+# Ce fichier matérialise la règle pour Git ; il ne s'y substitue pas.
+
+# ---------------------------------------------------------------- données
+# Paires, unités, manifestes, verdicts, générations, jeux d'évaluation.
+*.jsonl
+*.jsonl.progress
+*.jsonl.adjudged
+*.parquet
+*.db
+*.sqlite*
+corpus*.json
+depenses.jsonl
+
+# Résultats de bancs et d'évaluations : régénérables, et souvent porteurs
+# d'extraits du corpus (citations, preuves, désaccords).
+juge_*.json
+qcbin_*.json
+prof_*.json
+refus_*.json
+eval_itn_*.json
+evalsynth_*.json
+vitesse_*.json
+fix_results.json
+units_*.json
+ab*_key.json
+eval_files.json
+summre_eval_meetings.json
+
+# ---------------------------------------------------------------- audio
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+wav/
+wav_full/
+summre_wav/
+summre_units_wav/
+summre_parquet/
+
+# ---------------------------------------------------- modèles et poids
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+scribe-*/
+!scribe/
+night-*/
+gguf/
+# Le cache HF_HOME d'un repertoire de travail pose dans le depot — pas le
+# dossier hf/ du depot public (cartes, jobs), qui doit partir.
+hf/hub/
+hf/xet/
+hf/modules/
+hf/token
+
+# ------------------------------------------------- environnements Python
+*-venv/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ------------------------------------------------------------- journaux
+*.log
+overnight*.log
+serveur_*.log
+
+# ------------------------------------------------------------- système
+.DS_Store
+Thumbs.db
+*.swp
+*~

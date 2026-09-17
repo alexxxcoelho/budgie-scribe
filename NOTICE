@@ -1,0 +1,111 @@
+NOTICE — BudgieScribe
+=====================
+
+BudgieScribe is a family of transcript normalizers for speech-to-text output,
+one model per language, built by Budgie (gobudgie.com) and shipped in Budgie
+Echo. This file lists the attributions required or offered for the resources
+used to build and train the distributed models, and restates the one
+additional licensing term on the weights. LICENSE-MODEL is the controlling
+legal document for the weights; LICENSE (Apache 2.0) covers the code.
+
+
+-------------------------------------------------------------------------------
+0. Naming term (weights)
+-------------------------------------------------------------------------------
+
+Any use, distribution, or integration of this model, whether unmodified or as
+part of a derivative work or product, must continue to identify it by its
+original name, "BudgieScribe" by "Budgie", using that exact capitalization.
+
+This restates an additional term found in LICENSE-MODEL, which controls.
+
+
+-------------------------------------------------------------------------------
+1. Personal data — what the distributed models do NOT contain
+-------------------------------------------------------------------------------
+
+The distributed models are trained EXCLUSIVELY on the public corpora listed
+below and on synthetic pairs generated deterministically by the scripts in
+this repository.
+
+They contain NO personal data: no surname, postal address, phone number,
+e-mail address or bank identifier of a real person. The dictations of Budgie's
+own users, including those of the author, were removed from the training mix
+before any model intended for distribution was trained. A normalizer is, by
+construction, the architecture most likely to regurgitate its corpus;
+excluding personal dictations removes the question instead of bounding it.
+Every data set that enters a training mix is scanned by
+`scribe/pipeline/pii_scan.py`; every contribution is scanned again in CI.
+
+
+-------------------------------------------------------------------------------
+2. SUMM-RE corpus — the French model
+-------------------------------------------------------------------------------
+
+  Corpus      SUMM-RE
+              https://huggingface.co/datasets/linagora/SUMM-RE
+  Producer    LINAGORA
+  Funding     Agence Nationale de la Recherche, project ANR-20-CE23-0017
+  License     Creative Commons Attribution-ShareAlike 4.0 International
+              (CC BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/
+
+BudgieScribe-fr was trained, in part, on transcripts and audio segments from
+the SUMM-RE corpus produced by LINAGORA within project ANR-20-CE23-0017,
+distributed under CC BY-SA 4.0.
+
+This use is declared voluntarily. The SUMM-RE corpus itself has been neither
+modified nor redistributed by us. The derived works built from it (dictation-
+sized units, decoded transcription conventions, raw-to-clean pairs produced by
+a teacher model) are Adapted Material in the sense of CC BY-SA and are kept
+strictly local: no pair set, manifest, audio segment or transcript derived
+from SUMM-RE is distributed, in any repository, publication, product build,
+training artifact or report.
+
+The model weights are published under the widely held reading, shared by
+Creative Commons, that training a model is not adapting the corpus, so the
+weights are not a derivative work of it. This point has not been settled in
+court. Downstream integrators should be aware of it.
+
+
+-------------------------------------------------------------------------------
+3. VoxPopuli corpus — the English model
+-------------------------------------------------------------------------------
+
+  Corpus      VoxPopuli (config `en`, splits `test` and `validation`)
+              https://huggingface.co/datasets/facebook/voxpopuli
+  Producer    Meta AI (Wang et al., ACL 2021), from European Parliament
+              plenary recordings (2009-2020)
+  License     CC0 1.0 Universal (public domain dedication)
+              https://creativecommons.org/publicdomain/zero/1.0/
+              The source recordings fall under the European Parliament legal
+              notice: https://www.europarl.europa.eu/legal-notice/en/
+
+BudgieScribe-en was trained, in part, on 2,003 dictation-sized units cut from
+3,595 English VoxPopuli utterances, transcribed by an ASR engine, and on
+synthetic pairs generated deterministically. CC0 imposes no obligation; this
+attribution is voluntary. The derived corpus stays local, by the same project
+rule as above.
+
+Citation requested by the authors:
+  Wang, C., Riviere, M., Lee, A., Wu, A., Talnikar, C., Haziza, D.,
+  Williamson, M., Pino, J., Dupoux, E. (2021). VoxPopuli: A Large-Scale
+  Multilingual Speech Corpus for Representation Learning, Semi-Supervised
+  Learning and Interpretation. ACL 2021.
+
+
+-------------------------------------------------------------------------------
+4. Other resources
+-------------------------------------------------------------------------------
+
+  Base model      Qwen/Qwen3-0.6B — Apache License 2.0
+                  https://huggingface.co/Qwen/Qwen3-0.6B
+                  BudgieScribe is a full supervised fine-tune of this model.
+
+  Inference       llama.cpp — MIT License
+                  https://github.com/ggml-org/llama.cpp
+                  The GGUF files were produced with llama.cpp release b10816
+                  and are served by the same release inside Budgie Echo.
+
+  num2words       LGPL-2.1 — used only by the offline synthetic-pair
+                  generators to spell numbers out in words. Never embedded in
+                  the model or in any product.

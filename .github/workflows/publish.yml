@@ -1,0 +1,117 @@
+# Publishes BudgieScribe to the Hugging Face Hub — no HF_TOKEN secret.
+#
+# Authentication is a Trusted Publisher (OIDC): each job proves it is *this*
+# workflow, on *this* repo and branch, and receives a one-hour token scoped to
+# one Hub repo. Configure it once per Hub repo, under Settings → Trusted
+# Publishers: provider GitHub Actions, repository <owner>/budgie-scribe,
+# branch main, workflow publish.yml. A repo without a publisher entry makes
+# its job fail with `invalid_grant`, nothing else is affected.
+#
+# What gets published, and when:
+#   models   every family of models/manifest.json that lists at least one
+#            file. The GGUF is downloaded from its `source`, refused unless
+#            its SHA-256 matches the manifest, then uploaded with the card,
+#            LICENSE-MODEL, NOTICE and the family's manifest entry.
+#   eval     the held-out synthetic sets, regenerated from the generators
+#            (deterministic) and scanned for personal data before upload.
+#
+# Triggers: a push to main that touches the manifest, a card, the licenses or
+# the generators; or by hand (workflow_dispatch), optionally for one family.
+name: Publish to Hugging Face
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "models/manifest.json"
+      - "hf/**/README.md"
+      - "LICENSE-MODEL"
+      - "NOTICE"
+      - "scribe/generateurs/**"
+      - "scribe/bancs/exporter_heldout.py"
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+    inputs:
+      family:
+        description: "One family (Nano, Mini, Standard, Large) or empty for all"
+        required: false
+        default: ""
+
+concurrency:
+  group: publish-hf
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      families: ${{ steps.plan.outputs.families }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        shell: python
+        run: |
+          import json, os
+          man = json.load(open("models/manifest.json"))
+          only = "${{ github.event.inputs.family }}".strip()
+          rows = [{"family": n, "repo": f["repo"]}
+                  for n, f in man["families"].items()
+                  if f["files"] and (not only or n == only)]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("families=%s\n" % json.dumps(rows))
+          print(rows)
+
+  models:
+    needs: plan
+    if: ${{ needs.plan.outputs.families != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC token for the Trusted Publisher exchange
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.families) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the hf CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash -s -- --exclude-skill
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Assemble ${{ matrix.family }} (download + SHA-256 check)
+        run: python3 hf/jobs/assemble.py out "${{ matrix.family }}"
+
+      - name: Upload to flowcorp-ch/${{ matrix.repo }}
+        env:
+          HF_OIDC_RESOURCE: flowcorp-ch/${{ matrix.repo }}
+        run: |
+          hf upload "flowcorp-ch/${{ matrix.repo }}" "out/${{ matrix.repo }}" . \
+            --commit-message "Publish ${{ matrix.family }} from ${GITHUB_SHA::7}"
+
+  eval:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q num2words
+      - name: Install the hf CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash -s -- --exclude-skill
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Regenerate the held-out sets (deterministic) and scan for PII
+        run: |
+          python scribe/bancs/exporter_heldout.py out/eval
+          cp hf/BudgieScribe-eval/README.md out/eval/README.md
+      - name: Upload to datasets/flowcorp-ch/BudgieScribe-eval
+        env:
+          HF_OIDC_RESOURCE: datasets/flowcorp-ch/BudgieScribe-eval
+        run: |
+          hf upload flowcorp-ch/BudgieScribe-eval out/eval . --type dataset \
+            --commit-message "Held-out sets from ${GITHUB_SHA::7}"
