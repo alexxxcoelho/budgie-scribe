@@ -266,8 +266,15 @@ cleanup*, and routes to the French or English file by the detected language
 of the take.
 
 **Echo command line** — the same runtime and guard rails as the app, from a
-terminal: `echo-cli scribe clean --language fr < transcript.txt`. Download at
-[gobudgie.com/echo/cli](https://gobudgie.com/echo/cli).
+terminal. On an Apple silicon Mac:
+
+```bash
+brew install alexxxcoelho/budgie/echo-cli
+echo-cli login
+echo-cli scribe --language fr < transcript.txt
+```
+
+Update it later with `brew upgrade echo-cli`.
 
 ## Best practices
 

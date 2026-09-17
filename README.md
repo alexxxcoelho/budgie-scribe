@@ -54,10 +54,16 @@ Or with Ollama: `ollama create` from the downloaded GGUF (the card shows the
 Modelfile), then send the format described in [FORMAT.md](FORMAT.md) with
 thinking off and temperature 0.
 
-Or without installing anything: use Budgie Echo, or the Echo command line
-tool, which runs the same models with the same guard rails
-(`echo-cli scribe clean --language fr < transcript.txt`). Download:
-[gobudgie.com/echo/cli](https://gobudgie.com/echo/cli).
+Or use Budgie Echo or its command-line tool, which runs the same models with
+the same guard rails. On an Apple silicon Mac:
+
+```bash
+brew install alexxxcoelho/budgie/echo-cli
+echo-cli login
+echo-cli scribe --language fr < transcript.txt
+```
+
+Update it later with `brew upgrade echo-cli`.
 
 ## Scribe Cloud
 

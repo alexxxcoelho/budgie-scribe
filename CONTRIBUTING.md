@@ -35,16 +35,32 @@ A pair is one JSON line, in the exact shape the training script reads:
 
 - `dirty` is the **raw output of an ASR engine**, not a transcript you typed:
   the model learns to fix what engines actually produce. The easiest way to
-  get it exactly as Budgie Echo sees it:
+  get it exactly as Budgie Echo sees it is to let the app and its CLI collect
+  your own dictations. On an Apple silicon Mac, install the CLI from its
+  Homebrew tap, then sign in once:
 
   ```bash
-  echo-cli stt transcribe --raw --format pairs my_take.wav > pairs.jsonl
+  brew install alexxxcoelho/budgie/echo-cli
+  echo-cli login
   ```
 
-  This writes the raw side for each take with Scribe off; you fill in
-  `clean`. The CLI is free to use and downloads from
-  [gobudgie.com/echo/cli](https://gobudgie.com/echo/cli). Any other engine
-  is welcome too; name it in `source`.
+  Create and export contribution pairs with:
+
+  ```bash
+  echo-cli scribe prepare                       # your Echo history → candidate pairs,
+                                                # corrected by a local teacher model
+  echo-cli transcribe --capture my_take.wav     # a file's raw transcript joins the queue
+  # …review each pair in Budgie Echo → Import audio → Scribe training…
+  echo-cli scribe export --contrib contrib --handle <you>
+  ```
+
+  `prepare` is idempotent (run it daily); `export` writes
+  `contrib/<lang>/<you>-YYYY-MM.jsonl` in this exact format, ready for the
+  verifier. In the app, turn on *Settings → Text enhancements → Collect
+  training pairs* and every correction you make by hand on a result becomes a
+  candidate too. The CLI is free to use. Homebrew keeps it current with
+  `brew upgrade echo-cli`. Any other engine is welcome too; name it in
+  `source`.
 - `clean` is what you meant, under the rules of [FORMAT.md](FORMAT.md) §8:
   fillers gone, corrections resolved, numbers written, nothing added, nothing
   summarized. When in doubt, keep the speaker's words.
