@@ -34,6 +34,7 @@ One Hub repository per family, both languages inside:
 | Mini | Qwen3-1.7B, LoRA | flowcorp-ch/BudgieScribe-Mini | training profile ready, no build yet |
 | BudgieScribe | Qwen3-4B, LoRA | flowcorp-ch/BudgieScribe | training profile ready, no build yet |
 | Large | Qwen3-8B, LoRA | flowcorp-ch/BudgieScribe-Large | training profile ready, no build yet |
+| Qwen35 | Qwen3.5-0.8B, LoRA | flowcorp-ch/BudgieScribe-Qwen35 | training profile ready, no build yet |
 
 Current results, limits and build ids: [MODELS.md](MODELS.md).
 [`models/manifest.json`](models/manifest.json) is the contract: file name,

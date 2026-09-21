@@ -17,7 +17,8 @@ A **transcript normalizer**: a supervised fine-tune of a Qwen3 base model
 that maps the raw output of a speech-to-text engine to the text the speaker
 meant to dictate. The published builds are full fine-tunes of
 [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) (the `nano` profile);
-larger profiles train a LoRA adapter on 1.7B / 4B / 8B (§7).
+larger profiles train a LoRA adapter on 1.7B / 4B / 8B, or on Qwen3.5-0.8B
+(`qwen35`, §7).
 
 - **One model per language, at `nano`.** A 0.6B full fine-tune is exactly the
   configuration where a second language added to the same model overwrites the
@@ -39,7 +40,8 @@ GPU with 16 GB of memory, CUDA, ROCm or Apple MPS, and on Hugging Face Jobs.
 | | |
 |---|---|
 | Python | 3.12 |
-| Training | `torch` ≥ 2.4, `transformers==4.57.6` (5.x breaks gradient-checkpointing recomputation on some torch builds), `peft` (LoRA profiles), `num2words` |
+| Training | `torch` ≥ 2.4, `transformers==4.57.6`, `peft` (LoRA profiles), `num2words` |
+| `transformers`, per profile | **4.57.6** for `nano`/`mini`/`standard`/`large` — 5.16/5.17 break gradient-checkpointing recomputation on some torch builds (`CheckpointError`); **≥ 5.10** for `qwen35`, which exists in no 4.x (`qwen3_5` landed at 5.10.0). On `hf jobs`, pass it with `--with` so it is visible in the command (below) |
 | Teacher / judges | any instruction model of 12B+ served locally by `llama-server` (the published builds used Gemma 12B QAT, Q4_0); a cloud API works too (`pipeline/llm.py`) |
 | GGUF | llama.cpp **b10816** (`convert_hf_to_gguf.py` + `llama-quantize`), the release Budgie Echo serves with |
 | One run | 34k pairs, 2 epochs: **43 min** on an AMD Radeon AI PRO R9700; ~1 h on an A10G (`hf jobs`, ≈ $1) |
@@ -228,18 +230,29 @@ pin the dataset commit and select the language files explicitly:
 
 ```bash
 hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h \
-  --secrets HF_TOKEN -- \
+  --secrets HF_TOKEN --with transformers==4.57.6 -- \
+  --selection-module hf/jobs/dataset_selection.py \
   --lang fr --profil nano \
   --source 'flowcorp-ch/BudgieScribe-contrib@<dataset-commit>:contrib/fr/*.jsonl' \
   --out <namespace>/scribe-fr-next
 ```
 
+`hf/jobs/train.py` does **not** pin `transformers` in its PEP-723 header: the
+right version depends on the profile, so it is passed with `--with` and stays
+visible in the command that ran. `--with` installs into the same uv
+environment the header builds, which is the interpreter the cloned trainer
+runs on. Use `--with transformers==4.57.6` for the Qwen3 profiles and
+`--with transformers==5.17.0` for `qwen35` (see §7 below).
+
 `--source` is repeatable, so a run may use only the public contributions, only
-an authorized private mix, or an explicit combination. The job rejects mixed
-languages and duplicate ids/transcripts, then stores `selection.json` in the
-private checkpoint. It records the resolved Hub commits, exact files, row
-count and hashes. `--profil` chooses the standard size; `--base` can replace
-the profile's base model and `--methode full|lora` can replace its method.
+an authorized private mix, or an explicit combination. Sources, files and rows
+are processed in their deterministic selection order. The first occurrence of
+an id or normalized `dirty` transcript is kept and later duplicates are
+skipped; mixed languages still fail. `selection.json` in the private
+checkpoint records the resolved Hub commits, exact files, row counts, hashes
+and duplicate counts. `--profil` chooses the standard size; `--base` can
+replace the profile's base model and `--methode full|lora` can replace its
+method.
 
 (`train.py` is `train_rocm.py` with generic device selection: `cuda`, then
 `mps`, then CPU; on ROCm, torch reports the device as `cuda`.)
@@ -257,12 +270,13 @@ value can be overridden on the command line (`--base`, `--methode`, `--lr`,
 | `mini` | Qwen3-1.7B | LoRA r=32 | 1e-4 | 8 × 2 | ~5 GB |
 | `standard` | Qwen3-4B | LoRA r=32 | 1e-4 | 4 × 4 | ~10 GB |
 | `large` | Qwen3-8B | LoRA r=32 | 1e-4 | 2 × 8 | ~18 GB |
+| `qwen35` | Qwen3.5-0.8B-Base | LoRA r=32 | 1e-4 | 4 × 4 | ~10 GB |
 
 Why the method changes with size: full SFT keeps fp32 weights and fp32 AdamW
 state, 16 bytes per parameter — 27 GB for 1.7B before activations, 64 GB for
 4B. That does not fit a 32 GB card, and ROCm spills to host memory silently
 rather than failing. LoRA freezes the base in bf16 and trains an adapter on
-every linear projection (q/k/v/o, gate/up/down); at the end of the run the
+the linear projections the profile declares; at the end of the run the
 adapter is **merged into the weights** and the folder is saved as a plain
 bf16 model. `gguf`, `eval-itn` and `eval-ab` load it like a full run. The
 adapter alone is also kept in `<out>/adaptateur/` (tens of MB) for a server
@@ -271,18 +285,57 @@ that prefers to load base + adapter (vLLM).
 `--methode full` on `mini` is legitimate on a 40 GB+ GPU (an A100 on Hugging
 Face Jobs); on `standard` and `large` it is not an option on one card.
 
+A profile may also set four optional fields, absent from the Qwen3 profiles so
+that their behaviour is unchanged: `lora_cibles` (the projections the adapter
+covers), `lora_exclure`, `classe` (the transformers class to load) and
+`grad_ckpt`. They are read through `modeles.lora_cibles()` and friends, which
+fall back to today's defaults.
+
+#### `qwen35` — Qwen3.5-0.8B
+
+Four things separate this profile from the others, all of them in
+`modeles.py`:
+
+- **`transformers` ≥ 5.10.** `qwen3_5` does not exist in any 4.x release
+  (absent through v5.0.0, present from v5.10.0). This is the one profile that
+  cannot use the 4.57.6 pin.
+- **`grad_ckpt=False`.** 5.16/5.17 break gradient-checkpointing recomputation
+  on some torch builds (`CheckpointError`, `train_en_v5_echec-*.log`). Turning
+  checkpointing off removes the failing path instead of repairing it — the
+  signature change is only observed when the forward is replayed. A LoRA
+  adapter on a frozen 752 M base fits without it, and the batch drops to
+  4 × 4 for the same reason: without checkpointing, activation memory is the
+  binding constraint, not the weights. The effective batch still matches
+  `mini`.
+- **`classe="Qwen3_5ForCausalLM"`.** The published checkpoint is multimodal
+  (100 M of vision tower, 21 M of MTP head). The text class declares
+  `_keys_to_ignore_on_load_unexpected = [r"^mtp.*", r"^model.visual.*"]`, so
+  neither is loaded — 752 M remain. That also removes the `mtp.*` prefix a
+  short-name `target_modules` list would otherwise match.
+- **`lora_cibles` extended.** 18 of the 24 layers are linear attention (gated
+  delta net), which the seven Qwen3 names do not reach: `in_proj_qkv`,
+  `in_proj_z` and `out_proj` are added, for 150 modules. Omitting them would
+  not raise an error — it would freeze three quarters of the stack silently.
+  `in_proj_a`/`in_proj_b` are `[16, 1024]`, too small for a rank-32 adapter;
+  `conv1d` is a real `nn.Conv1d`.
+
+Run it with `--with transformers==5.17.0`. Watch the first five minutes: if the
+gated-delta kernel falls back to its pure-PyTorch path the run continues with
+no error and takes hours instead of one.
+
 | | |
 |---|---|
 | Precision | full: fp32 weights and optimizer state, bf16 autocast on matmuls · LoRA: bf16 frozen base, fp32 adapter, bf16 autocast |
 | Optimizer | fused AdamW where available, cosine schedule, 6 % warmup, grad clip 1.0 |
 | Epochs | 2 |
 | Max length | 512 tokens, labels masked on the prompt |
-| Gradient checkpointing | on; `use_cache` forced back to `true` in the saved config (see §8) |
+| Gradient checkpointing | on, except `qwen35`; `use_cache` forced back to `true` in the saved config (see §8) |
 | Shipped runs (`nano`) | en-v5: 7,898 steps, 43.2 min, 24 units/s · fr-v8: 8,010 steps |
 
 Do not change the base or the hyperparameters in the same round as the data:
 one variable per round. The run writes `run.json` next to the weights with
-every parameter, including `profil`, `base` and `methode`; the evaluation
+every parameter, including `profil`, `base`, `methode`, `classe`, `grad_ckpt`
+and the exact `lora` target list; the evaluation
 scripts read it, so a `mini` candidate is compared to the 1.7B base, not to
 the 0.6B (`eval_itn.py base:mini` addresses a profile's base directly). On
 Hugging Face Jobs: `hf/jobs/train.py --profil …`, about a dollar for `nano`

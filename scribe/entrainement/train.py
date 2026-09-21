@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Point d'entree generique de l'entrainement, par arguments de ligne de commande.
 
-    python train.py --pairs pairs_mix_en.jsonl --out scribe-en-next [--profil nano|mini|standard|large]
+    python train.py --pairs pairs_mix_en.jsonl --out scribe-en-next [--profil nano|mini|standard|large|qwen35]
                     [--methode full|lora] [--base <repo HF>] [--epochs 2] [--batch N] [--accum N]
                     [--lr X] [--lora-r 32] [--lora-alpha 64] [--max-len 512] [--limit 0]
 

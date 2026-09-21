@@ -143,6 +143,13 @@ def main():
     template = prof["template"]
     lora_r = int(os.environ.get("SCRIBE_LORA_R", modeles.LORA_DEFAUT["r"]))
     lora_alpha = int(os.environ.get("SCRIBE_LORA_ALPHA", modeles.LORA_DEFAUT["alpha"]))
+    # Les trois reglages que seuls certains profils declarent. Les defauts
+    # viennent de modeles.py, donc un profil qui les ignore se comporte
+    # exactement comme avant qu'ils existent.
+    lora_cibles = modeles.lora_cibles(prof)
+    lora_exclure = modeles.lora_exclure(prof)
+    classe = modeles.classe(prof)
+    grad_ckpt = modeles.grad_ckpt(prof)
 
     pairs_path = os.environ.get("SCRIBE_PAIRS", os.path.join(SP, "pairs_mix.jsonl"))
     out_dir = os.environ.get("SCRIBE_OUT", os.path.join(SP, "scribe-rocm"))
@@ -152,9 +159,13 @@ def main():
     accum = int(os.environ.get("SCRIBE_ACCUM", prof["accum"]))
     lr = float(os.environ.get("SCRIBE_LR", prof["lr"]))
     limit = int(os.environ.get("SCRIBE_LIMIT", "0"))
-    print("profil : %s | base : %s | methode : %s%s"
+    print("profil : %s | base : %s | methode : %s%s%s"
           % (prof["nom"], base, methode,
-             " (r=%d, alpha=%d)" % (lora_r, lora_alpha) if methode == "lora" else ""))
+             " (r=%d, alpha=%d, %d cibles)" % (lora_r, lora_alpha, len(lora_cibles))
+             if methode == "lora" else "",
+             "" if grad_ckpt else " | sans gradient checkpointing"))
+    if classe:
+        print("classe : %s (au lieu de AutoModelForCausalLM)" % classe)
 
     # Un juge encore charge retient ~7 Go de VRAM et fait tomber le debit de
     # 25 a 5 unites/s — CINQ FOIS plus lent, sans aucune erreur ni
@@ -197,25 +208,50 @@ def main():
     print("entrainement : %d unites | evaluation : %d unites (%d fichiers tenus a l'ecart)"
           % (len(train), len(evalset), len(held)))
 
+    # `AutoModelForCausalLM` suffit a un decodeur pur. Un modele multimodal en
+    # a besoin autrement : sa classe par defaut construit la tour de vision en
+    # plus du texte, alors que la tache ici est purement textuelle.
+    def charger_base(dtype):
+        if not classe:
+            return AutoModelForCausalLM.from_pretrained(base, torch_dtype=dtype)
+        import importlib
+        return getattr(importlib.import_module("transformers"), classe).from_pretrained(
+            base, torch_dtype=dtype)
+
     if methode == "full":
         # Poids fp32, matmuls bf16 par autocast : pas de derive des petits
         # gradients. 16 octets/param avec AdamW — reserve aux petits modeles.
-        model = AutoModelForCausalLM.from_pretrained(base, torch_dtype=torch.float32).to(dev)
+        model = charger_base(torch.float32).to(dev)
     else:
-        # Base gelee en bf16 (2 octets/param), adaptateur LoRA en fp32 sur
-        # toutes les projections lineaires. `enable_input_require_grads` est
-        # indispensable avec le gradient checkpointing : sinon aucune
-        # activation ne requiert de gradient a l'entree du premier bloc et
-        # l'adaptateur ne recoit rien — perte constante, aucune erreur.
+        # Base gelee en bf16 (2 octets/param), adaptateur LoRA en fp32 sur les
+        # projections que le profil declare. La liste est par profil et non
+        # globale : une architecture hybride a des projections que la liste
+        # Qwen3 n'atteint pas, et les manquer ne leve aucune erreur — ca gele
+        # des couches en silence.
         from peft import LoraConfig, get_peft_model
-        model = AutoModelForCausalLM.from_pretrained(base, torch_dtype=torch.bfloat16).to(dev)
-        model.enable_input_require_grads()
+        model = charger_base(torch.bfloat16).to(dev)
+        if grad_ckpt:
+            # Indispensable AVEC le gradient checkpointing : les activations
+            # sont jetees puis rejouees, donc aucune ne requiert de gradient a
+            # l'entree du premier bloc et l'adaptateur ne recoit rien — perte
+            # constante, aucune erreur. Sans checkpointing, les gradients
+            # circulent normalement et ce hook n'a plus d'objet.
+            model.enable_input_require_grads()
+        # `exclude_modules` n'est passe que s'il y a quelque chose a exclure :
+        # le champ n'existe pas dans les peft anciens, et le passer a None pour
+        # tout le monde ferait echouer les profils qui n'en ont pas besoin.
+        lora_kwargs = {}
+        if lora_exclure:
+            lora_kwargs["exclude_modules"] = lora_exclure
         model = get_peft_model(model, LoraConfig(
             r=lora_r, lora_alpha=lora_alpha, lora_dropout=modeles.LORA_DEFAUT["dropout"],
-            target_modules=modeles.LORA_CIBLES, task_type="CAUSAL_LM"))
+            target_modules=lora_cibles, task_type="CAUSAL_LM", **lora_kwargs))
         model.print_trainable_parameters()   # peft garde l'adaptateur en fp32
-    model.gradient_checkpointing_enable()
-    model.config.use_cache = False
+    if grad_ckpt:
+        model.gradient_checkpointing_enable()
+        # Le checkpointing exige le cache desactive. Sans lui on le laisse tel
+        # quel ; la sauvegarde le force de toute facon a True.
+        model.config.use_cache = False
     model.train()
     entrainables = [prm for prm in model.parameters() if prm.requires_grad]
     try:
@@ -292,7 +328,9 @@ def main():
     json.dump({"minutes": minutes, "steps": total_steps, "train_units": len(train),
                "device": "%s:%s" % (dev.type, getattr(p, "gcnArchName", "?") if dev.type == "cuda" else "-"),
                "profil": prof["nom"], "base": base, "methode": methode,
-               "lora": {"r": lora_r, "alpha": lora_alpha} if methode == "lora" else None,
+               "classe": classe, "grad_ckpt": grad_ckpt,
+               "lora": {"r": lora_r, "alpha": lora_alpha, "cibles": lora_cibles,
+                        "exclure": lora_exclure} if methode == "lora" else None,
                "template": template, "lr": lr, "epochs": epochs, "max_len": max_len,
                "batch": batch, "accum": accum,
                "pairs": os.path.basename(pairs_path),

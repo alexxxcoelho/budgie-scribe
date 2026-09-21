@@ -1,11 +1,15 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["torch", "transformers==4.57.6", "peft", "huggingface_hub", "num2words"]
+# dependencies = ["torch", "peft", "huggingface_hub", "num2words"]
 # ///
+# `transformers` is not pinned here either, and for the same reason as in
+# train.py. The pin must MATCH the one the checkpoint was trained with: a Qwen3
+# checkpoint is 4.57.6, a Qwen3.5 one needs >= 5.10. Pass it with `--with`.
 """Score a checkpoint on the public held-out sets, on Hugging Face Jobs.
 
     hf jobs uv run hf/jobs/eval.py --flavor t4-small --timeout 1h \
-        --secrets HF_TOKEN -- --model flowcorp-ch/scribe-en-next --lang en
+        --secrets HF_TOKEN --with transformers==4.57.6 \
+        -- --model flowcorp-ch/scribe-en-next --lang en
 
 Downloads the checkpoint (a private model repo pushed by train.py, or any
 transformers-format BudgieScribe checkpoint) and the public held-out sets
@@ -26,7 +30,7 @@ from huggingface_hub import snapshot_download
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--model", required=True,
-                help="model repo (transformers format), 'base' or 'base:<profil>' (nano/mini/standard/large)")
+                help="model repo (transformers format), 'base' or 'base:<profil>' (nano/mini/standard/large/qwen35)")
 ap.add_argument("--lang", required=True)
 ap.add_argument("--code", default="alexxxcoelho/budgie-scribe", help="GitHub repo to clone")
 ap.add_argument("--n", type=int, default=0, help="cap the number of cases per set (0 = all)")
