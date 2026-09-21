@@ -137,7 +137,8 @@ the model.
 Face Jobs for about a dollar a run:
 
 ```bash
-hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h --secrets HF_TOKEN -- \
+hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h \
+  --secrets HF_TOKEN --with transformers==4.57.6 -- \
   --lang en --profil nano \
   --source 'flowcorp-ch/BudgieScribe-contrib@<commit>:contrib/en/*.jsonl' \
   --out <you>/scribe-en-next

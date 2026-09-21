@@ -11,15 +11,14 @@
 
     hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h \
         --secrets HF_TOKEN --with transformers==4.57.6 \
-        -- --selection-module hf/jobs/dataset_selection.py --lang en \
+        -- --lang en \
         --source 'flowcorp-ch/BudgieScribe-contrib@<commit>:contrib/en/*.jsonl' \
         --out flowcorp-ch/scribe-en-next --epochs 2 --batch 4
 
     # a bigger profile: 1.7B / 4B in LoRA fit an A10G (24 GB); 8B wants an A100.
     hf jobs uv run hf/jobs/train.py --flavor a10g-large --timeout 4h \
         --secrets HF_TOKEN --with transformers==4.57.6 \
-        -- --selection-module hf/jobs/dataset_selection.py \
-        --lang fr --profil standard \
+        -- --lang fr --profil standard \
         --source 'flowcorp-ch/BudgieScribe-data@<commit>:mix/pairs_mix.jsonl' \
         --out flowcorp-ch/scribe-standard-fr-next
 
@@ -28,14 +27,17 @@
     # what makes 5.17 safe here.
     hf jobs uv run hf/jobs/train.py --flavor a10g-large --timeout 4h \
         --secrets HF_TOKEN --with transformers==5.17.0 \
-        -- --selection-module hf/jobs/dataset_selection.py \
-        --lang fr --profil qwen35 \
+        -- --lang fr --profil qwen35 \
         --source 'flowcorp-ch/BudgieScribe-data@<commit>:mix/pairs_mix.jsonl' \
         --out flowcorp-ch/scribe-qwen35-fr-next
 
 `--with transformers==...` installs into the same uv environment PEP-723
 builds from the header above, so `sys.executable` -- the interpreter the
 cloned trainer runs on -- sees it.
+
+No `--selection-module`: `hf jobs uv run` uploads the script and nothing else,
+so a neighbouring file is not in the container. The helper is read from the
+clone the script makes itself. The flag remains an override for a local run.
 
 Each repeatable --source selects ``repo[@revision]:glob`` from a Hub dataset.
 The selected JSONL files are sorted, validated and merged; selection.json in
@@ -92,7 +94,7 @@ ap.add_argument("--source", action="append", default=[], help="repeatable: <data
 ap.add_argument("--pairs", help="legacy alias for one exact --source path")
 ap.add_argument(
     "--selection-module",
-    help="path to dataset_selection.py; pass it to hf jobs so the local helper is uploaded with this script",
+    help="path to dataset_selection.py; default: the copy inside the cloned repo",
 )
 ap.add_argument("--out", required=True, help="model repo to push the checkpoint to (private)")
 ap.add_argument("--profil", default="nano", choices=["nano", "mini", "standard", "large", "qwen35"])
@@ -104,15 +106,23 @@ ap.add_argument("--accum", type=int, help="gradient accumulation; default: the p
 ap.add_argument("--code", default="alexxxcoelho/budgie-scribe", help="GitHub repo to clone")
 args = ap.parse_args()
 
-if args.selection_module:
-    sys.path.insert(0, str(Path(args.selection_module).resolve().parent))
-try:
-    from dataset_selection import merge_jsonl, parse_source, selected_files
-except ModuleNotFoundError as exc:
-    ap.error("dataset_selection.py is missing; pass --selection-module hf/jobs/dataset_selection.py")
-
 work = Path("/tmp/scribe-work"); work.mkdir(parents=True, exist_ok=True)
 subprocess.run(["git", "clone", "--depth", "1", f"https://github.com/{args.code}", str(work / "repo")], check=True)
+
+# L'import vient APRES le clone, et son defaut pointe DANS le clone.
+# `hf jobs uv run` ne televerse que le SCRIPT, pas ses fichiers voisins : un
+# chemin relatif comme `hf/jobs/dataset_selection.py` n'existe pas dans le
+# conteneur, et l'import etait resolu avant que le clone ne l'apporte. Le clone
+# l'apporte toujours, donc c'est lui le defaut. `--selection-module` reste une
+# surcharge, pour un run hors conteneur qui veut un autre exemplaire.
+helper = (Path(args.selection_module).resolve() if args.selection_module
+          else work / "repo" / "hf" / "jobs" / "dataset_selection.py")
+sys.path.insert(0, str(helper.parent))
+try:
+    from dataset_selection import merge_jsonl, parse_source, selected_files
+except ModuleNotFoundError:
+    ap.error("dataset_selection.py introuvable (%s); passez --selection-module" % helper)
+
 source_values = list(args.source)
 if args.pairs:
     source_values.append(args.pairs)

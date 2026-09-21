@@ -231,7 +231,6 @@ pin the dataset commit and select the language files explicitly:
 ```bash
 hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h \
   --secrets HF_TOKEN --with transformers==4.57.6 -- \
-  --selection-module hf/jobs/dataset_selection.py \
   --lang fr --profil nano \
   --source 'flowcorp-ch/BudgieScribe-contrib@<dataset-commit>:contrib/fr/*.jsonl' \
   --out <namespace>/scribe-fr-next

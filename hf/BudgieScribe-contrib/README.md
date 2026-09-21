@@ -64,7 +64,7 @@ subset of files:
 
 ```bash
 hf jobs uv run hf/jobs/train.py --flavor a10g-small --timeout 2h \
-  --secrets HF_TOKEN -- \
+  --secrets HF_TOKEN --with transformers==4.57.6 -- \
   --lang fr --profil nano \
   --source 'flowcorp-ch/BudgieScribe-contrib@<dataset-commit>:contrib/fr/*.jsonl' \
   --out <namespace>/scribe-fr-next
