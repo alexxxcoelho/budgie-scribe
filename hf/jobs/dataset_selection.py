@@ -3,7 +3,8 @@
 A source has the form ``repo[@revision]:glob``.  The revision is optional;
 the glob is relative to the dataset repository.  The caller downloads each
 snapshot, then this module validates and concatenates the selected JSONL files
-in deterministic order while refusing mixed languages and duplicate rows.
+in deterministic order while refusing mixed languages and keeping only the
+first occurrence of duplicate ids or normalized dirty transcripts.
 """
 
 from __future__ import annotations
@@ -51,14 +52,20 @@ def merge_jsonl(files: list[Path], output: Path, lang: str) -> dict[str, object]
     seen_dirty: dict[str, Path] = {}
     rows: list[str] = []
     per_file: list[dict[str, object]] = []
+    duplicate_ids_skipped = 0
+    duplicate_dirty_skipped = 0
 
     for path in files:
         count = 0
+        input_rows = 0
+        file_duplicate_ids = 0
+        file_duplicate_dirty = 0
         digest = hashlib.sha256()
         with path.open(encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, 1):
                 if not raw.strip():
                     continue
+                input_rows += 1
                 digest.update(raw.encode("utf-8"))
                 try:
                     row = json.loads(raw)
@@ -72,14 +79,26 @@ def merge_jsonl(files: list[Path], output: Path, lang: str) -> dict[str, object]
                 row_id = str(row["id"])
                 dirty_key = " ".join(str(row["dirty"]).split()).casefold()
                 if row_id in seen_ids:
-                    raise ValueError(f"duplicate id {row_id!r} in {seen_ids[row_id]} and {path}")
+                    duplicate_ids_skipped += 1
+                    file_duplicate_ids += 1
+                    continue
                 if dirty_key in seen_dirty:
-                    raise ValueError(f"duplicate dirty transcript in {seen_dirty[dirty_key]} and {path}")
+                    duplicate_dirty_skipped += 1
+                    file_duplicate_dirty += 1
+                    continue
                 seen_ids[row_id] = path
                 seen_dirty[dirty_key] = path
                 rows.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
                 count += 1
-        per_file.append({"path": str(path), "rows": count, "sha256": digest.hexdigest()})
+        per_file.append({
+            "path": str(path),
+            "input_rows": input_rows,
+            "rows": count,
+            "duplicates_skipped": file_duplicate_ids + file_duplicate_dirty,
+            "duplicate_ids_skipped": file_duplicate_ids,
+            "duplicate_dirty_skipped": file_duplicate_dirty,
+            "sha256": digest.hexdigest(),
+        })
 
     if not rows:
         raise ValueError("dataset selection contains no training row")
@@ -87,7 +106,11 @@ def merge_jsonl(files: list[Path], output: Path, lang: str) -> dict[str, object]
     output.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return {
         "language": lang,
+        "input_rows": len(rows) + duplicate_ids_skipped + duplicate_dirty_skipped,
         "rows": len(rows),
+        "duplicates_skipped": duplicate_ids_skipped + duplicate_dirty_skipped,
+        "duplicate_ids_skipped": duplicate_ids_skipped,
+        "duplicate_dirty_skipped": duplicate_dirty_skipped,
         "output_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
         "files": per_file,
     }
